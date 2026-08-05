@@ -1,0 +1,167 @@
+FROM debian:bookworm-slim
+ENV LANG=C.UTF-8
+USER root
+
+# Basic dependencies
+RUN apt-get update -qq \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -qq --no-install-recommends \
+        ca-certificates \
+        curl \
+        gettext \
+        git \
+        gnupg \
+        expect-dev \
+        pipx
+
+ENV PIPX_BIN_DIR=/usr/local/bin
+
+# Make pip work in standard-based mode only This disables use of deprecated
+# setup.py bdist_wheel and.py develop commands in favor of the PEP 517 and PEP
+# 660 interfaces.
+ENV PIP_USE_PEP517=1
+
+# Increase timeout for keyserver
+RUN mkdir -p ~/.gnupg \
+    && echo connect-timeout 600 >> ~/.gnupg/dirmngr.conf
+
+# Install wkhtmltopdf (arm64: no official wkhtmltox .deb builds exist, so we use
+# the Debian package; note it is built without patched Qt, i.e. no HTML
+# headers/footers, which is fine for CI report tests)
+RUN apt-get update -qq \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -qq --no-install-recommends \
+        wkhtmltopdf
+
+# Install nodejs dependencies
+RUN mkdir -p /etc/apt/keyrings \
+    && curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg \
+    && echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list \
+    && apt-get update -qq \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -qq nodejs
+# less is for odoo<12
+RUN npm install -g rtlcss less@3.0.4 less-plugin-clean-css
+
+# Install postgresql client
+RUN apt-get update -qq \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -qq postgresql-client
+
+ARG python_version=3.11
+
+# Install build dependencies for python libs commonly used by Odoo and OCA
+RUN apt-get update -qq \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -qq --no-install-recommends \
+       build-essential \
+       python${python_version}-dev \
+       python${python_version}-venv \
+       # we need python 3 for our helper scripts
+       python3 \
+       python3-venv \
+       # for psycopg
+       libpq-dev \
+       # for lxml
+       libxml2-dev \
+       libxslt1-dev \
+       zlib1g-dev \
+       libxmlsec1-dev \
+       # for python-ldap
+       libldap2-dev \
+       libsasl2-dev \
+       # need libjpeg to build older pillow versions
+       libjpeg-dev \
+       # for pycups
+       libcups2-dev \
+       # for mysqlclient \
+       default-libmysqlclient-dev \
+       # some other build tools
+       swig \
+       libffi-dev \
+       pkg-config \
+       jq \
+       unzip
+
+# Install chromium (arm64: Chrome for Testing has no official linux-arm64
+# build, so we use the Debian chromium package; the google-chrome symlink keeps
+# compatibility with Odoo's chrome binary detection and helper scripts)
+RUN apt-get update -qq \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -qq --no-install-recommends \
+        chromium \
+    && ln -snf /usr/bin/chromium /usr/bin/google-chrome
+
+# We use manifestoo to check licenses, development status and list addons and dependencies
+RUN pipx install --pip-args="--no-cache-dir" "manifestoo>=1.1"
+# Used in oca_checklog_odoo to check odoo logs for errors and warnings
+RUN pipx install --pip-args="--no-cache-dir" checklog-odoo
+
+# Install pyproject-dependencies helper scripts.
+ARG build_deps="setuptools-odoo wheel whool"
+RUN pipx install --pip-args="--no-cache-dir" pyproject-dependencies
+RUN pipx inject --pip-args="--no-cache-dir" pyproject-dependencies $build_deps
+
+# Make a virtualenv for Odoo so we isolate from system python dependencies and
+# make sure addons we test declare all their python dependencies properly
+RUN python$python_version -m venv /opt/odoo-venv \
+    && /opt/odoo-venv/bin/pip install -U "pip" \
+    && /opt/odoo-venv/bin/pip list
+ENV PATH=/opt/odoo-venv/bin:$PATH
+
+ARG odoo_version=18.0
+
+# Install Odoo requirements (use ADD for correct layer caching).
+# We use requirements from OCB for easier maintenance of older versions.
+ADD https://api.github.com/repos/OCA/OCB/git/refs/heads/$odoo_version /tmp/branch.json
+
+# Use the commit SHA from JSON to download exact requirements.txt
+RUN SHA=$(jq -r .object.sha /tmp/branch.json) \
+ && curl -sSL "https://raw.githubusercontent.com/OCA/OCB/${SHA}/requirements.txt" \
+    -o /tmp/ocb-requirements.txt
+# The sed command is to use the latest version of gevent and greenlet. The
+# latest version works with all versions of Odoo that we support here, and the
+# oldest pinned in Odoo's requirements.txt don't have wheels, and don't build
+# anymore with the latest cython.
+RUN sed -i -E "s/^(gevent|greenlet)==.*/\1/" /tmp/ocb-requirements.txt \
+ && pip install --no-cache-dir \
+      -r /tmp/ocb-requirements.txt \
+      packaging
+
+# Install other test requirements.
+# - coverage
+# - websocket-client is required for Odoo browser tests
+RUN pip install --no-cache-dir \
+  coverage \
+  websocket-client
+
+# Install Odoo (use ADD for correct layer caching)
+ARG odoo_org_repo=odoo/odoo
+ADD https://api.github.com/repos/$odoo_org_repo/git/refs/heads/$odoo_version /tmp/odoo-version.json
+RUN mkdir /tmp/getodoo \
+    && (curl -sSL https://github.com/$odoo_org_repo/tarball/$odoo_version | tar -C /tmp/getodoo -xz) \
+    && mv /tmp/getodoo/* /opt/odoo \
+    && rmdir /tmp/getodoo
+RUN pip install --no-cache-dir -e /opt/odoo --config-setting=editable_mode=compat \
+    && pip list
+
+# Make an empty odoo.cfg
+RUN echo "[options]" > /etc/odoo.cfg
+ENV ODOO_RC=/etc/odoo.cfg
+
+COPY bin/* /usr/local/bin/
+
+ENV ODOO_VERSION=$odoo_version
+ENV PGHOST=postgres
+ENV PGUSER=odoo
+ENV PGPASSWORD=odoo
+ENV PGDATABASE=odoo
+# This PEP 503 index uses odoo addons from OCA and redirects the rest to PyPI,
+# in effect hiding all non-OCA Odoo addons that are on PyPI.
+ENV PIP_INDEX_URL=https://wheelhouse.odoo-community.org/oca-simple-and-pypi
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1
+ENV PIP_NO_PYTHON_VERSION_WARNING=1
+# Control addons discovery. INCLUDE and EXCLUDE are comma-separated list of
+# addons to include (default: all) and exclude (default: none)
+ENV ADDONS_DIR=.
+ENV ADDONS_PATH=/opt/odoo/addons
+ENV INCLUDE=
+ENV EXCLUDE=
+ENV OCA_GIT_USER_NAME=oca-ci
+ENV OCA_GIT_USER_EMAIL=oca-ci@odoo-community.org
+ENV OCA_ENABLE_CHECKLOG_ODOO=
+ENV ODOO_BROWSER_LOG_VERBOSITY=1

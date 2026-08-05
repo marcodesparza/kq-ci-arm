@@ -1,0 +1,23 @@
+# Uso con podman (prioritario):
+#   podman compose -f tests/docker-compose.yml run --build test ./runtests.sh -v
+# Uso con docker:
+#   docker compose -f tests/docker-compose.yml run --build test ./runtests.sh -v
+services:
+  test:
+    build:
+      context: ..
+      args:
+        python_version: "3.11"
+        odoo_version: "18.0"
+        odoo_org_repo: "odoo/odoo"
+    volumes:
+      - ..:/mnt/oca-ci-arm
+    working_dir: /mnt/oca-ci-arm/tests
+    depends_on:
+      - postgres
+  postgres:
+    image: docker.io/library/postgres
+    environment:
+      POSTGRES_USER: odoo
+      POSTGRES_PASSWORD: odoo
+      POSTGRES_DB: odoo
