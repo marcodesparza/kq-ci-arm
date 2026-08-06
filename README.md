@@ -112,7 +112,23 @@ the `PATH` for easier dev/test iteration.
 ## CI (GitHub Actions)
 
 `.github/workflows/ci.yaml` builds the arm64 image and runs the test suite on
-every push to `master` and every pull request. GitHub-hosted runners are
-x86_64, so the build and tests run under QEMU emulation (slower, but works on
-public and private repos). If the repo is public, you can switch to the native
-arm64 runner `ubuntu-24.04-arm` and drop the QEMU step.
+every push to `master` and every pull request, using the native arm64 GitHub
+runner (`ubuntu-24.04-arm`, free for public repos). On pushes to `master`,
+after the tests pass, the image is published to
+`ghcr.io/<owner>/oca-ci-arm:py3.11-odoo19.0` (and `:latest`).
+
+### Using the published image in other projects
+
+Pull it directly instead of building:
+
+```console
+podman pull ghcr.io/<owner>/oca-ci-arm:py3.11-odoo19.0
+```
+
+and reference that image in your CI (e.g. `container:` in GitHub Actions, or
+`image:` in a compose file), with a postgres service alongside.
+
+Note: the first push creates the ghcr package as **private**. To make it
+publicly pullable, go to the package page on GitHub → *Package settings* →
+*Change visibility* → public (and link the package to this repository so it
+shows up on the repo page).
