@@ -1,4 +1,4 @@
-# Container image to run OCA CI tests (arm64, Podman-first)
+# Container image to run OCA CI tests (arm64)
 
 ⚠️ These images are meant for running CI tests of Odoo addons in the OCA
 style. They are *not* intended for any other purpose, and in particular they
