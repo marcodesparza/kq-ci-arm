@@ -1,9 +1,11 @@
-# Uso con podman (prioritario):
-#   podman compose -f tests/docker-compose.yml run --build test ./runtests.sh -v
-# Uso con docker:
-#   docker compose -f tests/docker-compose.yml run --build test ./runtests.sh -v
+# Uso con podman (prioritario). Sin --build, hace PULL de la imagen publicada
+# en ghcr.io; con --build, la compila localmente desde el Dockerfile:
+#   podman compose -f tests/docker-compose.yml run test ./runtests.sh -v          # descarga
+#   podman compose -f tests/docker-compose.yml run --build test ./runtests.sh -v  # compila
+# Uso con docker: mismo par de comandos con `docker compose`.
 services:
   test:
+    image: ghcr.io/marcodesparza/oca-ci-arm:py3.11-odoo19.0
     build:
       context: ..
       args:

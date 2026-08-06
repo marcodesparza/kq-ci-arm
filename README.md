@@ -97,13 +97,15 @@ Tests are written using [pytest](https://pytest.org) in the `tests` directory.
 You can run them using the `runtests.sh` script inside the container.
 
 In the test directory, there is a `docker-compose.yml` to help run the tests.
-It builds the image locally and starts a postgres service:
+By default it **pulls the published image** from ghcr.io; pass `--build` to
+build locally from the Dockerfile instead:
 
 ```console
-# podman
+# podman — pull published image
+podman compose -f tests/docker-compose.yml run test ./runtests.sh -v
+# podman — build locally
 podman compose -f tests/docker-compose.yml run --build test ./runtests.sh -v
-# docker
-docker compose -f tests/docker-compose.yml run --build test ./runtests.sh -v
+# docker: same two commands with `docker compose`
 ```
 
 This docker-compose mounts this project, and `runtests.sh` adds then `bin` directory to
