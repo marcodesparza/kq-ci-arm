@@ -1,0 +1,70 @@
+name: ci
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+
+concurrency:
+  group: ${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  main:
+    # Los runners hosted de GitHub son x86_64, así que la imagen arm64 se
+    # construye y se prueba bajo emulación QEMU (más lento, pero funciona en
+    # repos públicos y privados). Si el repo es público, se puede cambiar a
+    # runs-on: ubuntu-24.04-arm (runner arm64 nativo) y quitar el paso QEMU.
+    runs-on: ubuntu-latest
+    env:
+      python_version: "3.11"
+      odoo_version: "19.0"
+      odoo_org_repo: "odoo/odoo"
+      image_name: oca-ci-arm
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: odoo
+          POSTGRES_PASSWORD: odoo
+          POSTGRES_DB: odoo
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U odoo"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/arm64
+          build-args: |
+            python_version=${{ env.python_version }}
+            odoo_version=${{ env.odoo_version }}
+            odoo_org_repo=${{ env.odoo_org_repo }}
+          tags: ${{ env.image_name }}:latest
+          load: true
+          cache-from: type=gha,scope=odoo${{ env.odoo_version }}
+          cache-to: type=gha,mode=max,scope=odoo${{ env.odoo_version }}
+      - name: Tests
+        run: >-
+          docker run --platform linux/arm64
+          -v ${PWD}/tests:/mnt/tests
+          --network=host -e PGHOST=localhost
+          ${{ env.image_name }}:latest /mnt/tests/runtests.sh -v
+      - name: Smoke checks
+        run: >-
+          docker run --platform linux/arm64 ${{ env.image_name }}:latest
+          bash -c "odoo --version && chromium --version && wkhtmltopdf --version"

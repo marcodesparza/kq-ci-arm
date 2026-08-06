@@ -108,3 +108,11 @@ docker compose -f tests/docker-compose.yml run --build test ./runtests.sh -v
 
 This docker-compose mounts this project, and `runtests.sh` adds then `bin` directory to
 the `PATH` for easier dev/test iteration.
+
+## CI (GitHub Actions)
+
+`.github/workflows/ci.yaml` builds the arm64 image and runs the test suite on
+every push to `master` and every pull request. GitHub-hosted runners are
+x86_64, so the build and tests run under QEMU emulation (slower, but works on
+public and private repos). If the repo is public, you can switch to the native
+arm64 runner `ubuntu-24.04-arm` and drop the QEMU step.
