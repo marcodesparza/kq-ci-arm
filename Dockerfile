@@ -103,7 +103,7 @@ RUN python$python_version -m venv /opt/odoo-venv \
     && /opt/odoo-venv/bin/pip list
 ENV PATH=/opt/odoo-venv/bin:$PATH
 
-ARG odoo_version=18.0
+ARG odoo_version=19.0
 
 # Install Odoo requirements (use ADD for correct layer caching).
 # We use requirements from OCB for easier maintenance of older versions.

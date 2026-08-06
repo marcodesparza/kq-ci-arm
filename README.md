@@ -73,21 +73,21 @@ Available commands:
 With the helper script (podman by default, docker via `OCI_RUNTIME=docker`):
 
 ```console
-./build.sh                          # odoo 18.0, python 3.11
-ODOO_VERSION=17.0 ./build.sh        # another modern Odoo
+./build.sh                          # odoo 19.0, python 3.11
+ODOO_VERSION=18.0 ./build.sh        # another modern Odoo
 OCI_RUNTIME=docker ./build.sh       # force docker
 ```
 
 Or directly:
 
 ```console
-podman build --build-arg python_version=3.11 --build-arg odoo_version=18.0 -t oca-ci-arm .
+podman build --build-arg python_version=3.11 --build-arg odoo_version=19.0 -t oca-ci-arm .
 ```
 
 Build args:
 
 - python_version (default: 3.11)
-- odoo_version (default: 18.0)
+- odoo_version (default: 19.0)
 - odoo_org_repo (default: odoo/odoo)
 
 ## Tests

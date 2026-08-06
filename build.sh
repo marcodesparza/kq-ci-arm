@@ -2,8 +2,8 @@
 # Build the oca-ci arm64 image. Podman-first, falls back to docker.
 #
 # Usage:
-#   ./build.sh                                  # defaults: odoo 18.0, python 3.11, odoo/odoo
-#   ODOO_VERSION=17.0 ./build.sh                # pick another modern Odoo
+#   ./build.sh                                  # defaults: odoo 19.0, python 3.11, odoo/odoo
+#   ODOO_VERSION=18.0 ./build.sh                # pick another modern Odoo
 #   OCI_RUNTIME=docker ./build.sh               # force docker
 set -e
 
@@ -20,7 +20,7 @@ if [ -z "$OCI_RUNTIME" ]; then
 fi
 
 PYTHON_VERSION=${PYTHON_VERSION:-3.11}
-ODOO_VERSION=${ODOO_VERSION:-18.0}
+ODOO_VERSION=${ODOO_VERSION:-19.0}
 ODOO_ORG_REPO=${ODOO_ORG_REPO:-odoo/odoo}
 IMAGE_NAME=${IMAGE_NAME:-localhost/oca-ci-arm:py${PYTHON_VERSION}-odoo${ODOO_VERSION}}
 

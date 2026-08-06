@@ -4,4 +4,15 @@
 # For the transitive search to work, dependencie must be available in
 # the Odoo addons path.
 #
-manifestoo -d $ADDONS_DIR list-external-dependencies $1 --transitive
+# Si se filtraron addons a testear, limitamos la búsqueda de dependencias
+# externas a esos mismos addons para no fallar por dependencias no satisfechas
+# de módulos hermanos que no vamos a probar.
+SELECT_INCLUDE=""
+SELECT_EXCLUDE=""
+if [ -n "$INCLUDE" ]; then
+    SELECT_INCLUDE="--select-include $INCLUDE"
+fi
+if [ -n "$EXCLUDE" ]; then
+    SELECT_EXCLUDE="--select-exclude $EXCLUDE"
+fi
+manifestoo -d $ADDONS_DIR $SELECT_INCLUDE $SELECT_EXCLUDE list-external-dependencies $1 --transitive
